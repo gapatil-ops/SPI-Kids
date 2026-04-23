@@ -54,7 +54,7 @@ always_comb begin
         end
         SOL_CHECK: begin
             if (sol_cmplt)
-                next_state = DONE;
+                next_state = IDLE;
             else if (cmd0) begin
                 next_state = MOVE;
                 strt_hdng = 1;
@@ -84,7 +84,7 @@ always_comb begin
         end
         // IDLE state
         default: begin
-            if (cmd_md) begin
+            if (~cmd_md) begin
                 strt_mv = 1;
                 next_state = MOVE;
             end
