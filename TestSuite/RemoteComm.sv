@@ -7,18 +7,18 @@ module RemoteComm(
     output TX,
     output logic cmd_sent,
     output [7:0] resp,
-    output resp_rdy
+    output resp_rdy,
+    input clr_resp_rdy
 );
 
     logic trmt;
-    logic clr_rx_rdy;
 
     logic [7:0] tx_data;
     logic tx_done;
 
     // UART transceiver
     UART iUART(.clk(clk), .rst_n(rst_n), .RX(RX), .TX(TX), .trmt(trmt), 
-    .clr_rx_rdy(clr_rx_rdy), .tx_data(tx_data), .rx_rdy(resp_rdy),
+    .clr_rx_rdy(clr_resp_rdy), .tx_data(tx_data), .rx_rdy(resp_rdy),
     .tx_done(tx_done), .rx_data(resp)
     );
     

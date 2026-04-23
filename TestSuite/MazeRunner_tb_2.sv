@@ -56,6 +56,9 @@ module MazeRunner_tb();
 
     /// Your magic goes here ///
 
+    
+
+
     $display("All tests passed!!");
     $stop();
 	
