@@ -42,7 +42,7 @@ module MazeRunner_tb_left_affinity();
   ///////////////////////////////////////////////////////////////////////////////////////
   // Instantiate RemoteComm which models bluetooth module receiving & forwarding cmds //
   /////////////////////////////////////////////////////////////////////////////////////
-  RemoteComm iCMD(.clk(clk), .rst_n(RST_n), .RX(TX_RX), .TX(RX_TX), .cmd(cmd), .send_cmd(send_cmd),
+  RemoteComm iCMD(.clk(clk), .rst_n(RST_n), .RX(TX_RX), .TX(RX_TX), .cmd(cmd), .snd_cmd(send_cmd),
                .cmd_sent(cmd_sent), .resp_rdy(resp_rdy), .resp(resp));
 			   
   ///////////////////////////////////////////////////
