@@ -26,7 +26,7 @@ assign error = actl_hdng - dsrd_hdng;
 parameter signed [3:0] P_COEFF = 4'h3;
 
 logic signed [13:0]P_term;         // Signed P component
-logic signed [13:0]P_term_temp;    // Flopping
+//logic signed [13:0]P_term_temp;    // Flopping
 logic signed [14:0]P_term_se;      // Sign extended P component
 
 // Intermediate signal
@@ -48,15 +48,15 @@ always_ff @( posedge clk, negedge rst_n ) begin
 end
 
 // Signed multiply
-assign P_term_temp = err_sat*P_COEFF;
+assign P_term = err_sat*P_COEFF;
 
 // Flop P term
-always_ff @( posedge clk, negedge rst_n ) begin
-    if (!rst_n)
-        P_term <= 14'h0000;
-    else
-        P_term <= P_term_temp;
-end
+// always_ff @( posedge clk, negedge rst_n ) begin
+//     if (!rst_n)
+//         P_term <= 14'h0000;
+//     else
+//         P_term <= P_term_temp;
+// end
 
 // Sign extend
 assign P_term_se = {P_term[13],P_term};
@@ -101,7 +101,7 @@ assign I_term_se = {{3{I_term[11]}}, I_term};
 
 // D_term
 logic signed [12:0] D_term;
-logic signed [12:0] D_term_temp;
+//logic signed [12:0] D_term_temp;
 logic signed [14:0] D_term_se;
 
 // Signed multiply coefficient
@@ -131,32 +131,22 @@ assign D_diff = err_sat - prev_error;
 assign D_diff_sat = D_diff[10] ? (&D_diff[9:7] ? D_diff[7:0] : 8'h80) : (|D_diff[9:7] ? 8'h7F : D_diff[7:0]); 
 
 // Signed multiply
-assign D_term_temp = D_diff_sat * D_COEFF;
+assign D_term = D_diff_sat * D_COEFF;
 
 // Flop D term
-always_ff @( posedge clk, negedge rst_n ) begin
-    if (!rst_n)
-        D_term <= 13'h0000;
-    else
-        D_term <= D_term_temp;
-end
+// always_ff @( posedge clk, negedge rst_n ) begin
+//     if (!rst_n)
+//         D_term <= 13'h0000;
+//     else
+//         D_term <= D_term_temp;
+// end
 
 assign D_term_se = {{2{D_term[12]}}, D_term};
 
 // Sum PID terms
-logic signed [14:0] PID_sum_temp;
-
-assign PID_sum_temp = P_term_se + I_term_se + D_term_se;
-
-// Pipeline PID sum
 logic signed [14:0] PID_sum;
 
-always_ff @( posedge clk, negedge rst_n ) begin
-	if (!rst_n)
-		PID_sum <= 0;
-	else
-		PID_sum <= PID_sum_temp;
-end
+assign PID_sum = P_term_se + I_term_se + D_term_se;
 
 // Divide by 8
 logic signed [11:0] PID_trim;
