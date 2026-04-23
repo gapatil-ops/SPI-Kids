@@ -1,0 +1,56 @@
+# Read in the verilog files
+read_file -format sverilog { ./MazeRunner.sv ./PWM12.sv ./DutyScaleROM.sv ./cmd_proc.sv ./A2D_intf.sv ./inert_intf.sv ./inertial_integrator.sv ./IR_Math.sv ./maze_solve.sv ./MtrDrv.sv ./navigate.sv ./PID.sv ./piezo_drv.sv ./PWM8.sv ./reset_synch.sv ./sensor_intf.sv ./SPI_mnrch.sv ./SPI_main.sv ./UART_rx.sv ./UART_tx.sv ./UART.sv ./UART_wrapper.sv}
+
+# Set UART to top level
+current_design MazeRunner
+
+# Define a clock of 363 MHz and source it to clock
+create_clock -name "clk" -period 2.75 {clk}
+
+# Prevent Synopsys from buffering the clock
+set_dont_touch_network [find port clk]
+
+# Define input delays
+set prim_inputs [remove_from_collection [all_inputs] [find port clk]]
+
+set sec_inputs [remove_from_collection [all_inputs] [get_ports {clk rst_n}]]
+
+set_input_delay -clock clk 0.6 $prim_inputs
+
+# Set drive strength
+set_driving_cell -lib_cell NAND2X2_LVT -library saed32lvt_tt0p85v25c $sec_inputs
+
+# Define output delays
+set_output_delay -clock clk 0.5 [all_outputs]
+
+# Set capacitive load
+set_load 0.100 [all_outputs]
+
+# Max transition time
+set_max_transition 0.125 [current_design]
+
+# Wire load model
+set_wire_load_model -name 16000 -library saed32lvt_tt0p85v25c
+
+# Compile
+compile -map_effort medium
+
+# Flatten hierarchy
+ungroup -all -flatten
+
+# Set clock uncertainty
+set_clock_uncertainty 0.125 clk
+
+set_fix_hold clk
+
+# Compile again
+compile -map_effort medium
+
+# Min delay, max delay, and area report
+report_timing -delay min
+report_timing -delay max
+report_area
+report_area > MazeRunner_area.txt
+
+# Write out netlist
+write -format verilog MazeRunner -output MazeRunner.vg
