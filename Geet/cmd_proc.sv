@@ -32,18 +32,17 @@ module cmd_proc (
     
     // Define your FSM states here. 
     // You will need IDLE, plus states to wait for cal_done, mv_cmplt, and sol_cmplt.
-    typedef enum logic [2:0] {
+    typedef enum logic [1:0] {
         IDLE,
         CALIBRATE,
-        HEADING,
-        MOVEMENT,
+        HEAD_MOVE,
         SOLVE
     } state_t;
 
     state_t state, nxt_state;
 
     // Extracting the opcode makes the FSM case statements much cleaner to read
-    logic [2:0] opcode;
+    logic [2:0] opcode; 
     assign opcode = cmd[15:13];
 
     // =========================================================================
@@ -115,12 +114,12 @@ module cmd_proc (
                         3'b001: begin
                             // Heading command
                             strt_hdng = 1'b1; // Start heading change
-                            nxt_state = HEADING; // Transition to heading state
+                            nxt_state = HEAD_MOVE; // Transition to heading state
                         end
                         3'b010: begin
                             // Move command
                             strt_mv = 1'b1; // Start movement
-                            nxt_state = MOVEMENT; // Transition to movement state
+                            nxt_state = HEAD_MOVE; // Transition to movement state
                         end
                         3'b011: begin
                             // Solve command 
@@ -147,23 +146,15 @@ module cmd_proc (
                 end
             end
 
-            HEADING: begin
+            HEAD_MOVE: begin
                 if (mv_cmplt) begin
                     send_resp = 1'b1; // Send response when heading change is complete
                     nxt_state = IDLE; // Return to IDLE
                 end else begin
-                    nxt_state = HEADING; // Stay in HEADING until move is complete
+                    nxt_state = HEAD_MOVE; // Stay in HEAD_MOVE until move is complete
                 end
             end
 
-            MOVEMENT: begin
-                if (mv_cmplt) begin
-                    send_resp = 1'b1; // Send response when movement is complete
-                    nxt_state = IDLE; // Return to IDLE
-                end else begin
-                    nxt_state = MOVEMENT; // Stay in MOVEMENT until move is complete
-                end
-            end
 
                 SOLVE: begin
                     cmd_md = 1'b0; // Ensure we stay in Autonomous solve mode
@@ -179,4 +170,5 @@ module cmd_proc (
         endcase
     end
 
+//check the signals values if they match
 endmodule
