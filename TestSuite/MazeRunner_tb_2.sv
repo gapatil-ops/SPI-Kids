@@ -6,7 +6,7 @@ module MazeRunner_tb();
   reg [11:0] batt;				// battery voltage 0xD80 is nominal
   
   logic cmd_sent;				
-  logic resp_rdy;				// MazeRunner has sent a pos acknowledge
+  logic resp_rdy, clr_resp_rdy;				// MazeRunner has sent a pos acknowledge
   logic [7:0] resp;				// resp byte from MazeRunner (hopefully 0xA5)
   logic hall_n;					// magnet found?
   
@@ -38,7 +38,7 @@ module MazeRunner_tb();
   // Instantiate RemoteComm which models bluetooth module receiving & forwarding cmds //
   /////////////////////////////////////////////////////////////////////////////////////
   RemoteComm iCMD(.clk(clk), .rst_n(RST_n), .RX(TX_RX), .TX(RX_TX), .cmd(cmd), .send_cmd(send_cmd),
-               .cmd_sent(cmd_sent), .resp_rdy(resp_rdy), .resp(resp));
+               .cmd_sent(cmd_sent), .resp_rdy(resp_rdy), .resp(resp), .clr_resp_rdy(clr_resp_rdy));
 			   
   ///////////////////////////////////////////////////
   // Instantiate physical model of robot and maze //
@@ -50,19 +50,52 @@ module MazeRunner_tb();
 					 .A2D_SS_n(A2D_SS_n),.A2D_SCLK(A2D_SCLK),.A2D_MOSI(A2D_MOSI),
 					 .A2D_MISO(A2D_MISO),.hall_n(hall_n),.batt(batt));
 
+  // COMMANDS
+  localparam logic [15:0] CALIBRATE = 16'h0000,
+                          HEADING_BASE = 16'h2000,
+                          MOVE_BASE = 16'h4000,
+                          SOLVE_BASE = 16'h6000;
+  // DIRECTIONS
+  localparam logic [11:0] NORTH = 12'h000,
+                          WEST = 12'h3FF,
+                          SOUTH = 12'h7FF,
+                          EAST = 12'hC00;
+  // MOVE STOP CONDITIONS
+  localparam logic [1:0] STP_RGHT = 2'b01,
+                         STP_LFT = 2'b10;
+  //  SOLVE AFFINITY CONDITIONS
+  localparam logic LFT_AFFN = 1'b1,
+                   RGHT_AFFN = 1'b0;
+                  
+  task initialize_and_reset;
+    // initialize all signals to default values
+    clk = 1'b0;
+    RST_n = 1'b0;
+    send_cmd = 1'b0;
+    cmd = 16'h0000;
+    batt = 12'hD80; // nominal battery voltage
+    @(posedge clk);
+    @(negedge clk);
+    RST_n = 1'b1; // release reset
+  endtask
 
-					 
+  task send_command(input logic [15:0] cmd);
+
+  endtask		 
+
   initial begin
 
     /// Your magic goes here ///
+    initialize_and_reset();
 
-    
 
 
     $display("All tests passed!!");
     $stop();
 	
   end
+
+
   
   always
     #5 clk = ~clk;
