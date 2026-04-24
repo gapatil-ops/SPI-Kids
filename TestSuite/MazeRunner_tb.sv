@@ -9,7 +9,8 @@ module MazeRunner_tb();
   logic resp_rdy;				// MazeRunner has sent a pos acknowledge
   logic [7:0] resp;				// resp byte from MazeRunner (hopefully 0xA5)
   logic hall_n;					// magnet found?
-  
+  logic clr_resp_rdy;				// asserted to mark response as processed
+
   /////////////////////////////////////////////////////////////////////////
   // Signals interconnecting MazeRunner to RunnerPhysics and RemoteComm //
   ///////////////////////////////////////////////////////////////////////
@@ -81,7 +82,7 @@ module MazeRunner_tb();
 
   
 
-    $stop();
+  
   
   // TEST 1: Calibration and handshaking
 
