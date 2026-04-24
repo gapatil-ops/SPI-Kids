@@ -178,7 +178,7 @@ always_ff @( posedge clk, negedge rst_n ) begin
 end
 
 logic signed [9:0] err_abs;
-assign err_abs  = err_sat[9] ? -err_sat : err_sat;
+assign err_abs  = err_sat_temp[9] ? -err_sat_temp : err_sat_temp;
 assign at_hdng  = (err_abs < 10'd30);
 
 endmodule
