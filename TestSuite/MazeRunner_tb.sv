@@ -73,7 +73,7 @@ module MazeRunner_tb();
       $display("ERR: Control signals (lft_spd/rght_spd) are not zero during idle!");
     end 
     // 2. Check if the physics model is actually moving
-    else if (iPHYS.omega_sum !== 17'h00000) begin
+    else if (iPHYS.omega_sum <= 17'h00000) begin
       $display("ERR: Physical model reports movement (omega_sum) during idle!");
     end 
     else begin

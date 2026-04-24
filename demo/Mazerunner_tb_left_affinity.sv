@@ -57,7 +57,7 @@ module MazeRunner_tb_left_affinity();
 
 
   //////////////////////////////////////////////////////////////
-  // Tasks: readable stimulus helpers (per project PDF slide 4) //
+  // Tasks: readable stimulus helpers //
   //////////////////////////////////////////////////////////////
   task automatic Initialize();
     begin
