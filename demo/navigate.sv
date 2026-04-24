@@ -79,6 +79,16 @@ module navigate(clk,rst_n,strt_hdng,strt_mv,stp_lft,stp_rght,mv_cmplt,hdng_rdy,m
       state <= nxt_state;
 
 
+  // Flopping strt_hdng to conform with pipeline of dsrd_hdng_adj from IR_math
+  logic strt_hdng_ff;
+  always_ff @(posedge clk, negedge rst_n) begin
+    if (!rst_n)
+      strt_hdng_ff <= 1'b0;
+    else
+      strt_hdng_ff <= strt_hdng;
+  end
+
+
   // LOGIC FOR STATE MACHINE (en_fusion logic in there)
 
   //////////////////////////
@@ -100,7 +110,7 @@ module navigate(clk,rst_n,strt_hdng,strt_mv,stp_lft,stp_rght,mv_cmplt,hdng_rdy,m
     case (state)
 
       CHILLIN: begin 
-        if (strt_hdng) begin // When we get a strt_hdng signal, we go to the state for adjusting the heading
+        if (strt_hdng_ff) begin // When we get a strt_hdng signal, we go to the state for adjusting the heading
           nxt_state = HDNG;
         end else if (strt_mv) begin // But if we get a start move command, we go to the state for moving
           nxt_state = MV_ACCEL;
