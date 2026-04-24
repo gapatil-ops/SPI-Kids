@@ -19,6 +19,7 @@ module MazeRunner_tb();
   wire A2D_SS_n,A2D_SCLK,A2D_MOSI,A2D_MISO;
   wire IR_lft_en,IR_cntr_en,IR_rght_en;  
   wire piezo;
+  wire [7:0] LED;
 
   ///// Internal registers for testing purposes??? /////////
   
@@ -32,7 +33,7 @@ module MazeRunner_tb();
 				  .A2D_MISO(A2D_MISO),.lftPWM1(lftPWM1),.lftPWM2(lftPWM2),
 				  .rghtPWM1(rghtPWM1),.rghtPWM2(rghtPWM2),.RX(RX_TX),.TX(TX_RX),
 				  .hall_n(hall_n),.piezo(piezo),.piezo_n(),.IR_lft_en(IR_lft_en),
-				  .IR_rght_en(IR_rght_en),.IR_cntr_en(IR_cntr_en),.LED());
+				  .IR_rght_en(IR_rght_en),.IR_cntr_en(IR_cntr_en),.LED(LED));
 	
   ///////////////////////////////////////////////////////////////////////////////////////
   // Instantiate RemoteComm which models bluetooth module receiving & forwarding cmds //
@@ -66,7 +67,8 @@ module MazeRunner_tb();
   //  SOLVE AFFINITY CONDITIONS
   localparam logic LFT_AFFN = 1'b1,
                    RGHT_AFFN = 1'b0;
-                  
+
+  /* Helper task to initialize and reset the testbench */
   task initialize_and_reset;
     // initialize all signals to default values
     clk = 1'b0;
@@ -79,14 +81,81 @@ module MazeRunner_tb();
     RST_n = 1'b1; // release reset
   endtask
 
-  task send_command(input logic [15:0] cmd);
+  /* Helper task to send a command */
+  task send_command(input logic [15:0] cm_to_send);
+    @(negedge clk);
+    cmd = cmd_to_send;
+    snd_cmd = 1'b1; // pulse send command
+    @(negedge clk);
+    snd_cmd = 1'b0;
+  endtask
 
-  endtask		 
+  task check_for_ack;
+    fork
+      begin: wait_for_ack // We wait for an acknowledgement from the robot
+        wait(resp_rdy);
+        disable ack_time_out; // If we get an acknowledge, we disable our timeout
+        if (resp !== 8'hA5) begin
+          $display("Expected 8'hA5 as response, but got %h", resp);
+          $stop();
+        end else begin
+          @(negedge clk);
+          clr_resp_rdy = 1'b1; // Clear the response ready flag for the next command
+          @(negedge clk);
+          clr_resp_rdy = 1'b0;
+        end
+      end
+
+      begin: ack_time_out
+        repeat (71000) @(negedge clk);
+        $display("Did not get an acknowledge from the robot from CALIBRATION command");
+        $stop();
+      end
+    join
+  endtask
 
   initial begin
 
     /// Your magic goes here ///
     initialize_and_reset();
+
+    // Send a calibration command and wait for it complete before sending any other commands.
+    send_command(CALIBRATE);
+    
+    // TEST 1: Calibration Command Test
+    fork
+      check_for_ack(); // We wait for an acknowledgement from the robot
+
+      begin: check_internal_cal // Checking the internal calibration signals
+        
+        disable cal_done_timeout; // Initially disable cal_done_timeout since we aren't using it yet
+
+        wait(iDUT.strt_cal);
+        disable int_cal_timeout;
+        assert property (@(negedge clk) iDUT.strt_cal |-> ##1 LED[0]) // LED[0] is the in_cal signal
+        else begin
+          $display("strt_cal was asserted but in_cal was not asserted on the next cycle");
+          $stop();
+        end
+
+        enable(cal_done_timeout); // If calibration starts, we enable the timeout for calibration to complete
+        wait(iDUT.cal_done);
+        disable cal_done_timeout;
+      end
+
+      begin: cal_done_timeout
+        repeat (100_000) @(negedge clk);
+        $display("Calibration did not complete in expected time");
+      end
+
+      begin: int_cal_timeout
+        repeat (54000) @(negedge clk);
+        $display("Internal start cal signal was never asserted");
+        $stop();
+      end
+
+    join
+
 
 
 
