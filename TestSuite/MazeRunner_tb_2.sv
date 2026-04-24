@@ -156,9 +156,6 @@ module MazeRunner_tb();
 
     join
 
-
-
-
     $display("All tests passed!!");
     $stop();
 	
