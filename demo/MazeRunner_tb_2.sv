@@ -82,7 +82,7 @@ module MazeRunner_tb();
   endtask
 
   /* Helper task to send a command */
-  task send_command(input logic [15:0] cm_to_send);
+  task send_command(input logic [15:0] cmd_to_send);
     @(negedge clk);
     cmd = cmd_to_send;
     snd_cmd = 1'b1; // pulse send command
@@ -124,26 +124,9 @@ module MazeRunner_tb();
     
     // TEST 1: Calibration Command Test
     fork
-      check_for_ack(); // We wait for an acknowledgement from the robot
-
-      begin: check_internal_cal // Checking the internal calibration signals
-        
-        disable cal_done_timeout; // Initially disable cal_done_timeout since we aren't using it yet
-
-        wait(iDUT.strt_cal);
-        disable int_cal_timeout;
-        assert property (@(negedge clk) iDUT.strt_cal |-> ##1 LED[0]) // LED[0] is the in_cal signal
-        else begin
-          $display("strt_cal was asserted but in_cal was not asserted on the next cycle");
-          $stop();
-        end
-
-        enable(cal_done_timeout); // If calibration starts, we enable the timeout for calibration to complete
-        wait(iDUT.cal_done);
-        disable cal_done_timeout;
-      end
-
+      
       begin: cal_done_timeout
+        wait(iDUT.strt_cal);
         repeat (100_000) @(negedge clk);
         $display("Calibration did not complete in expected time");
       end
@@ -154,7 +137,55 @@ module MazeRunner_tb();
         $stop();
       end
 
+      begin: check_internal_cal // Checking the internal calibration signals
+        
+        wait(iDUT.strt_cal);
+        disable int_cal_timeout;
+
+        assert property ( @(negedge clk) iDUT.strt_cal |-> ##1 LED[0] ) 
+        else begin // LED[0] is the in_cal signal
+          $display("strt_cal was asserted but in_cal was not asserted on the next cycle");
+          $stop();
+        end
+
+        //enable cal_done_timeout; // If calibration starts, we enable the timeout for calibration to complete
+        wait(iDUT.cal_done);
+        disable cal_done_timeout;
+      end
+
     join
+
+    check_for_ack(); // We wait for an acknowledgement from the robot after the calibration command completes
+
+    // TEST 2: Head west
+
+    send_command(HEADING_BASE + WEST);
+
+    fork
+      begin: int_heading_timeout
+        repeat (54000) @(negedge clk);
+        $display("Internal heading command was never acknowledged");
+        $stop();
+      end
+
+      begin: heading_done_timeout
+        wait(iDUT.strt_hdng);
+        repeat (100_000) @(negedge clk);
+        $display("Heading change did not complete in expected time");
+      end
+
+      begin: check_internal_heading // Checking the internal heading signals
+        wait(iDUT.strt_hdng);
+        disable int_heading_timeout;
+        while (!iDUT.mv_cmplt) @(negedge clk);
+        disable heading_done_timeout;
+      end
+      
+    join
+
+    $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
+    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot);
+    $display("Expected heading is %h", WEST);
 
     $display("All tests passed!!");
     $stop();
