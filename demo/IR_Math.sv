@@ -26,15 +26,31 @@ module IR_math(
     // These signals represent the difference between the IR readings in 3 cases
     // when both the left and right readings are valid, when only the left is valid,
     // and when only the right is valid
-    assign IR_diff = lft_IR - rght_IR; 
-    assign IR_diff_no_right = lft_IR - NOM_IR;
-    assign IR_diff_no_left = NOM_IR - rght_IR;
+    logic [11:0] op_A, op_B;
+    logic [12:0] sub_result;
 
-    // We then select which IR_reading to use based on whether the left or right is open, neither is open or both are open
-    assign IR_selected = (lft_opn & rght_opn) ? 12'h000 :
-                         (lft_opn) ? IR_diff_no_left :
-                         (rght_opn) ? IR_diff_no_right :
-                         IR_diff[12:1];
+    // Mux the inputs instead of the outputs
+    always_comb begin
+        if (lft_opn & rght_opn) begin
+            op_A = 12'h000;
+            op_B = 12'h000;
+        end else if (lft_opn) begin
+            op_A = NOM_IR;
+            op_B = rght_IR;
+        end else if (rght_opn) begin
+            op_A = lft_IR;
+            op_B = NOM_IR;
+        end else begin
+            op_A = lft_IR;
+            op_B = rght_IR;
+        end
+    end
+
+    // Single subtractor
+    assign sub_result = op_A - op_B;
+
+    // Assign the result (handling the right shift for the default case)
+    assign IR_selected = (lft_opn | rght_opn) ? sub_result[11:0] : sub_result[12:1];
 
     
     // Extend some IR signals to be used later on

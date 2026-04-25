@@ -36,7 +36,7 @@ module UART_rx(
     assign rx_data = dataframe[7:0];
 
     // 12-bit down-counter from 2604 or 1302
-    logic [12:0] baud_cntr;
+    logic [11:0] baud_cntr;
     logic init; // init is the signal that lets us know we should load our timer halfway and load our bit counter to 0
 
     always_ff @(posedge clk, negedge rst_n)
@@ -52,7 +52,7 @@ module UART_rx(
     assign inc_shift = ~|baud_cntr; // we increment our bit counter and shift our bit in once our baud counter reaches 0;
 
     // 4-bit counter up to and including 10
-    logic [4:0] bit_cnt;
+    logic [3:0] bit_cnt;
     logic cnt_hit_10;
     always_ff @(posedge clk, negedge rst_n)
         if (!rst_n)
