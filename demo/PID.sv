@@ -131,7 +131,9 @@ assign D_diff = err_sat - prev_error;
 assign D_diff_sat = D_diff[10] ? (&D_diff[9:7] ? D_diff[7:0] : 8'h80) : (|D_diff[9:7] ? 8'h7F : D_diff[7:0]); 
 
 // Signed multiply
-assign D_term = D_diff_sat * D_COEFF;
+// assign D_term = D_diff_sat * D_COEFF;
+// Multiply by 14 is exactly (x * 16) - (x * 2).
+assign D_term = (D_diff_sat <<< 4) - (D_diff_sat <<< 1);
 
 // Flop D term
 // always_ff @( posedge clk, negedge rst_n ) begin

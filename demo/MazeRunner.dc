@@ -10,6 +10,8 @@ create_clock -name "clk" -period 2.75 {clk}
 # Prevent Synopsys from buffering the clock
 set_dont_touch_network [find port clk]
 
+set_dont_touch_network [find port rst_n]
+
 # Define input delays
 set prim_inputs [remove_from_collection [all_inputs] [find port clk]]
 
