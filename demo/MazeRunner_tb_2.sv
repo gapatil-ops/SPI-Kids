@@ -79,6 +79,7 @@ module MazeRunner_tb();
     @(posedge clk);
     @(negedge clk);
     RST_n = 1'b1; // release reset
+    clr_resp_rdy = 1'b0; // make sure response ready flag is low at the beginning of the test
   endtask
 
   /* Helper task to send a command */
@@ -170,8 +171,9 @@ module MazeRunner_tb();
 
       begin: heading_done_timeout
         wait(iDUT.strt_hdng);
-        repeat (100_000) @(negedge clk);
+        repeat (10_000_000) @(negedge clk);
         $display("Heading change did not complete in expected time");
+        $stop();
       end
 
       begin: check_internal_heading // Checking the internal heading signals
@@ -184,8 +186,18 @@ module MazeRunner_tb();
     join
 
     $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
-    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot);
+    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
     $display("Expected heading is %h", WEST);
+
+    if (!(iDUT.actl_hdng inside {[WEST-8'h40:WEST+8'h40]})) begin
+      $display("Expected actual heading to be around %h but got %h", WEST, iDUT.actl_hdng);
+      $stop();
+    end
+
+    if (!(iPHYS.heading_robot[19:8] inside {[WEST-8'h40:WEST+8'h40]})) begin
+      $display("Expected physics heading to be around %h but got %h", WEST, iPHYS.heading_robot[19:8]);
+      $stop();
+    end
 
     $display("All tests passed!!");
     $stop();
