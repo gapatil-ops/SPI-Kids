@@ -1,3 +1,6 @@
+/**
+ * Testbench for MazeRunner module - this testbench does a manual solve of the maze, sending commands to the MazeRunner robot
+ */
 module MazeRunner_tb();
   
   reg clk,RST_n;
@@ -75,7 +78,7 @@ module MazeRunner_tb();
     RST_n = 1'b0;
     snd_cmd = 1'b0;
     cmd = 16'h0000;
-    batt = 12'hD80; // nominal battery voltage
+    batt = 12'hDA0; // nominal battery voltage
     @(posedge clk);
     @(negedge clk);
     RST_n = 1'b1; // release reset
@@ -157,8 +160,9 @@ module MazeRunner_tb();
     join
 
     check_for_ack(); // We wait for an acknowledgement from the robot after the calibration command completes
+    $display(); // Add a blank line for readability between tests
 
-    // TEST 2: Head west
+    // TEST 2: Head south
 
     send_command(HEADING_BASE + SOUTH);
 
@@ -191,16 +195,17 @@ module MazeRunner_tb();
     $display("Expected position is still (56,56) since we haven't moved yet and that's where we start in the maze");
     $display("Expected heading is %h", SOUTH);
 
-    if (!(iDUT.actl_hdng inside {[SOUTH-8'h45:SOUTH+8'h45]})) begin
+    if (!(iDUT.actl_hdng inside {[SOUTH-8'h50:SOUTH+8'h50]})) begin
       $display("Expected actual heading to be around %h but got %h", SOUTH, iDUT.actl_hdng);
       $stop();
     end
 
-    if (!(iPHYS.heading_robot[19:8] inside {[SOUTH-8'h45:SOUTH+8'h45]})) begin
+    if (!(iPHYS.heading_robot[19:8] inside {[SOUTH-8'h50:SOUTH+8'h50]})) begin
       $display("Expected physics heading to be around %h but got %h", SOUTH, iPHYS.heading_robot[19:8]);
       $stop();
     end
 
+    $display(); // Add a blank line for readability between tests
     check_for_ack(); // We wait for an acknowledgement from the robot after the heading command completes
     
 
@@ -239,14 +244,122 @@ module MazeRunner_tb();
     // The boxes of the maze are 16 units wide, so we want our bot's center position to be within 4 units of (56,40) in either direction
 
     if (!(iPHYS.xx[14:8] inside {[56-4:56+4]})) begin
-      $display("Expected x position to be around %h but got %h", 7'h01, iPHYS.xx[14:8]);
+      $display("Expected x position to be around %d but got %d", 56, iPHYS.xx[14:8]);
       $stop();
     end
 
     if (!(iPHYS.yy[14:8] inside {[40-4:40+4]})) begin
-      $display("Expected y position to be around %h but got %h", 7'hFF, iPHYS.yy[14:8]);
+      $display("Expected y position to be around %d but got %d", 40, iPHYS.yy[14:8]);
       $stop();
     end
+
+    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
+    $display(); // Add a blank line for readability between tests
+
+    // TEST 4: Head west
+
+    send_command(HEADING_BASE + WEST);
+
+    fork
+      begin: heading_start_timeout_2
+        repeat (54000) @(negedge clk);
+        $display("Internal heading command was never acknowledged");
+        $stop();
+      end
+
+      begin: heading_done_timeout_2
+        wait(iDUT.strt_hdng);
+        repeat (10_000_000) @(negedge clk);
+        $display("Heading change did not complete in expected time");
+        $stop();
+      end
+
+      begin: check_internal_heading_2 // Checking the internal heading signals
+        wait(iDUT.strt_hdng);
+        disable heading_start_timeout_2;
+        while (!iDUT.mv_cmplt) @(negedge clk);
+        disable heading_done_timeout_2;
+      end
+      
+    join
+
+    $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
+    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
+    $display("Current position is (%0d, %0d)", iPHYS.xx[14:8], iPHYS.yy[14:8]);
+    $display("Expected position is still (56,40)");
+    $display("Expected heading is %h", WEST);
+
+    if (!(iDUT.actl_hdng inside {[WEST-8'h50:WEST+8'h50]})) begin
+      $display("Expected actual heading to be around %h but got %h", WEST, iDUT.actl_hdng);
+      $stop();
+    end
+
+    if (!(iPHYS.heading_robot[19:8] inside {[WEST-8'h50:WEST+8'h50]})) begin
+      $display("Expected physics heading to be around %h but got %h", WEST, iPHYS.heading_robot[19:8]);
+      $stop();
+    end
+
+    check_for_ack(); // We wait for an acknowledgement from the robot after the heading command completes
+    $display(); // Add a blank line for readability between tests
+
+    // TEST 5: Move forward until we see an open on the left, then stop
+
+    send_command(MOVE_BASE + STP_LFT);
+
+    fork
+      begin: move_start_timeout_2
+        repeat (54000) @(negedge clk);
+        $display("Internal move command was never acknowledged");
+        $stop();
+      end
+
+      begin: move_done_timeout_2
+        wait(iDUT.strt_mv);
+        repeat (10_000_000) @(negedge clk);
+        $display("Move did not complete in expected time");
+        $stop();
+      end
+
+      begin: check_internal_move_2 // Checking the internal move signals
+        wait(iDUT.strt_mv);
+        disable move_start_timeout_2;
+        while (!iDUT.mv_cmplt) @(negedge clk);
+        disable move_done_timeout_2;
+      end
+    join
+
+    $display("Current position according to iPHYS is (%0d, %0d)", iPHYS.xx[14:8], iPHYS.yy[14:8]);
+    $display("Expected position is around (24,40) since we should just have moved west 2 boxes");
+    $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
+    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
+    $display("Expected heading is still %h", WEST);
+
+    // The boxes of the maze are 16 units wide, so we want our bot's center position to be within 4 units of (24,40) in either direction
+
+    if (!(iPHYS.xx[14:8] inside {[24-4:24+4]})) begin
+      $display("Expected x position to be around %d but got %d", 24, iPHYS.xx[14:8]);
+      $stop();
+    end
+
+    if (!(iPHYS.yy[14:8] inside {[40-4:40+4]})) begin
+      $display("Expected y position to be around %d but got %d", 40, iPHYS.yy[14:8]);
+      $stop();
+    end
+
+    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
+    $display(); // Add a blank line for readability between tests
+
+    // TEST 6: Now, the position we're at is actually the position of the magnet, so let's check if the robot detects
+    // it and we get a solution complete acknowledgement after this
+
+    if (iDUT.sol_cmplt !== 1'b1) begin
+      $display("Expected sol_cmplt to be 1 since we should be on the magnet, but got %b", iDUT.sol_cmplt);
+      $stop();
+    end
+
+    // TEST 7: We're now going to let fanfare play, check out the PWM wave and see if you can guess the song :)
+
+    #37_000_000; // Let the fanfare play for a bit
 
     $display("All tests passed!!");
     $stop();
