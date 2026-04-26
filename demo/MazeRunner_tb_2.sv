@@ -160,7 +160,7 @@ module MazeRunner_tb();
 
     // TEST 2: Head west
 
-    send_command(HEADING_BASE + WEST);
+    send_command(HEADING_BASE + SOUTH);
 
     fork
       begin: int_heading_timeout
@@ -187,15 +187,64 @@ module MazeRunner_tb();
 
     $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
     $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
-    $display("Expected heading is %h", WEST);
+    $display("Current position is (%0d, %0d)", iPHYS.xx[14:8], iPHYS.yy[14:8]);
+    $display("Expected position is still (56,56) since we haven't moved yet and that's where we start in the maze");
+    $display("Expected heading is %h", SOUTH);
 
-    if (!(iDUT.actl_hdng inside {[WEST-8'h40:WEST+8'h40]})) begin
-      $display("Expected actual heading to be around %h but got %h", WEST, iDUT.actl_hdng);
+    if (!(iDUT.actl_hdng inside {[SOUTH-8'h45:SOUTH+8'h45]})) begin
+      $display("Expected actual heading to be around %h but got %h", SOUTH, iDUT.actl_hdng);
       $stop();
     end
 
-    if (!(iPHYS.heading_robot[19:8] inside {[WEST-8'h40:WEST+8'h40]})) begin
-      $display("Expected physics heading to be around %h but got %h", WEST, iPHYS.heading_robot[19:8]);
+    if (!(iPHYS.heading_robot[19:8] inside {[SOUTH-8'h45:SOUTH+8'h45]})) begin
+      $display("Expected physics heading to be around %h but got %h", SOUTH, iPHYS.heading_robot[19:8]);
+      $stop();
+    end
+
+    check_for_ack(); // We wait for an acknowledgement from the robot after the heading command completes
+    
+
+    // TEST 3: Move forward until we see an open on the right, then stop
+
+    send_command(MOVE_BASE + STP_RGHT);
+
+    fork
+      begin: move_start_timeout
+        repeat (54000) @(negedge clk);
+        $display("Internal move command was never acknowledged");
+        $stop();
+      end
+
+      begin: move_done_timeout
+        wait(iDUT.strt_mv);
+        repeat (10_000_000) @(negedge clk);
+        $display("Move did not complete in expected time");
+        $stop();
+      end
+
+      begin: check_internal_move // Checking the internal move signals
+        wait(iDUT.strt_mv);
+        disable move_start_timeout;
+        while (!iDUT.mv_cmplt) @(negedge clk);
+        disable move_done_timeout;
+      end
+    join
+
+    $display("Current position according to iPHYS is (%0d, %0d)", iPHYS.xx[14:8], iPHYS.yy[14:8]);
+    $display("Expected position is around (56,40) since we should just have moved south 1 box");
+    $display("Current heading according to inertial unit is %h", iDUT.actl_hdng);
+    $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
+    $display("Expected heading is still %h", SOUTH);
+
+    // The boxes of the maze are 16 units wide, so we want our bot's center position to be within 4 units of (56,40) in either direction
+
+    if (!(iPHYS.xx[14:8] inside {[56-4:56+4]})) begin
+      $display("Expected x position to be around %h but got %h", 7'h01, iPHYS.xx[14:8]);
+      $stop();
+    end
+
+    if (!(iPHYS.yy[14:8] inside {[40-4:40+4]})) begin
+      $display("Expected y position to be around %h but got %h", 7'hFF, iPHYS.yy[14:8]);
       $stop();
     end
 
