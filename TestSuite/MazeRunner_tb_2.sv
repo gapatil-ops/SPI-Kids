@@ -82,7 +82,7 @@ module MazeRunner_tb();
   endtask
 
   /* Helper task to send a command */
-  task send_command(input logic [15:0] cm_to_send);
+  task send_command(input logic [15:0] cmd_to_send);
     @(negedge clk);
     cmd = cmd_to_send;
     snd_cmd = 1'b1; // pulse send command
