@@ -9,12 +9,11 @@
 //        - the muxed iDUT.stp_lft/stp_rght (cmd_md ? cmd : slv) should also
 //          flip over to the solver's values once cmd_md drops.
 //   3) Forward motion:
-//        - In maze_solve.MOVE state, MOVE -> SOL_CHECK only fires when
-//          (lft_opn & cmd0) | (rght_opn & ~cmd0) | mv_cmplt.  With all three
-//          inputs deasserted (no openings to take, no obstruction reached)
-//          the FSM must remain in MOVE so navigate keeps driving forward.
+//        - In maze_solve.MOVE state, the FSM must wait for mv_cmplt from 
+//          the navigate unit before evaluating the intersection to ensure 
+//          the robot is centered.
 //   4) Three left-affinity turn cases (each forced independently):
-//        a) Left opening present  ->  dsrd_hdng += 0x400 (turn left)
+//        a) Left opening + mv_cmplt  -> dsrd_hdng += 0x400 (turn left)
 //        b) No left, right open + mv_cmplt -> dsrd_hdng -= 0x400 (turn right)
 //        c) Dead end (no openings) + mv_cmplt -> dsrd_hdng += 0x800 (180)
 //
@@ -51,10 +50,10 @@ module MazeRunner_tb_left_affinity();
   // { IDLE, MOVE, SOL_CHECK, DONE } -> 2'd0..2'd3).  We use these to assert
   // FSM positions from outside without relying on hierarchical enum access.
   //////////////////////////////////////////////////////////////////////////////
-  localparam logic [1:0] IDLE_S      = 2'd0;
-  localparam logic [1:0] MOVE_S      = 2'd1;
-  localparam logic [1:0] SOL_CHECK_S = 2'd2;
-  localparam logic [1:0] DONE_S      = 2'd3;
+  localparam logic [2:0] IDLE_S      = 3'd0;
+  localparam logic [2:0] MOVE_S      = 3'd1;
+  localparam logic [2:0] SOL_CHECK_S = 3'd2;
+  localparam logic [2:0] DONE_S      = 3'd4; 
 
   //////////////////////////////////////////////////////////////////////////////
   // Local mirror of piezo_drv's state encoding (typedef inside ICHRG is
@@ -235,7 +234,7 @@ module MazeRunner_tb_left_affinity();
     end
   endtask
 
-  // Wait (with timeout) for cmd_md to fall low.  cmd_proc holds cmd_md high
+  // Wait for cmd_md to fall low.  cmd_proc holds cmd_md high
   // while in command mode and drops it once a maze-solve opcode is latched;
   // that is the exact moment maze_solve is allowed to leave IDLE.
   task automatic WaitForCmdMdLow(input int max_cycles, input string label);
@@ -255,7 +254,7 @@ module MazeRunner_tb_left_affinity();
     end
   endtask
 
-  // Wait (with timeout) until the maze_solve FSM is parked in a given state.
+  // Wait until the maze_solve FSM is parked in a given state.
   task automatic WaitForState(input logic [1:0] tgt, input int max_cycles, input string label);
     int cyc;
     begin
@@ -272,7 +271,7 @@ module MazeRunner_tb_left_affinity();
     end
   endtask
 
-  // Wait (with timeout) until the piezo_drv FSM (instance ICHRG) is in a
+  // Wait until the piezo_drv FSM (instance ICHRG) is in a
   // given state.  Used by STEP 6 to walk through every note of the "Charge!"
   // fanfare; the timeout must be generous because each beat consumes
   // hundreds of thousands of clocks even at FAST_SIM=1.
@@ -314,9 +313,7 @@ module MazeRunner_tb_left_affinity();
       // Snapshot dsrd_hdng before the turn we're about to provoke.
       prev_hdng = iDUT.iSLV.dsrd_hdng;
 
-      // Apply scenario inputs.  In left-affinity mode (cmd0=1) the MOVE->
-      // SOL_CHECK transition condition is (lft_opn | mv_cmplt), so any of the
-      // three scenarios below will fire on the next clk edge.
+      // Apply scenario inputs. 
       ForceMazeInputs(lft, rght, cmplt);
 
       // Wait for strt_hdng to assert (pulses for exactly one cycle, in
@@ -479,17 +476,16 @@ module MazeRunner_tb_left_affinity();
     ///////////////////////////////////////////////////////////////////////////
     // STEP 5: left-affinity algorithm, three independent turn cases.
     //
-    // Recall the SOL_CHECK arm for cmd0=1:
-    //     if (lft_opn)        dsrd_hdng_tmp = dsrd_hdng + 12'h400;  // left
-    //     else if (rght_opn)  dsrd_hdng_tmp = dsrd_hdng - 12'h400;  // right
-    //     else                dsrd_hdng_tmp = dsrd_hdng + 12'h800;  // 180
-    //
-    // Case (a): a left opening exists -- the FSM must always prefer it.
-    //           lft=1 alone is enough to trigger MOVE -> SOL_CHECK because
-    //           in left affinity the MOVE exit cond is (lft_opn | mv_cmplt).
+    // Case (a): a left opening exists.
+    // Because of the fixes made to maze_solve.sv, the FSM now correctly waits
+    // for mv_cmplt to assert before leaving the MOVE state to evaluate the turn,
+    // rather than turning prematurely the instant lft_opn goes high.
+    // So we must assert BOTH lft_opn and mv_cmplt to trigger the transition.
     ///////////////////////////////////////////////////////////////////////////
-    $display("[%0t] STEP 5a: left opening -> +0x400 (turn left)", $time);
-    ChkTurnCase(.lft(1'b1), .rght(1'b0), .cmplt(1'b0),
+    $display("[%0t] STEP 5a: left opening + mv_cmplt -> +0x400 (turn left)", $time);
+    
+    // CHANGED: .cmplt(1'b0) -> .cmplt(1'b1) 
+    ChkTurnCase(.lft(1'b1), .rght(1'b0), .cmplt(1'b1),
                 .delta(12'h400), .label("STEP 5a LEFT-TURN"));
 
     ///////////////////////////////////////////////////////////////////////////
