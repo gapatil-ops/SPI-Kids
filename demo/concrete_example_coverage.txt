@@ -1,0 +1,35 @@
+1. The PID Controller (PID.sv) reaches 100%
+
+In your previous testbench, you only commanded the robot to move forward or pivot once. This meant the PID controller only calculated error in one direction, leaving half of its logic unverified.
+
+The Testbench Change:
+We added three distinct, back-to-back pivot commands in different directions:
+
+Code snippet
+send_command(HEADING_BASE | WEST);  // +90 degrees
+send_command(HEADING_BASE | EAST);  // -180 degrees from West
+send_command(HEADING_BASE | NORTH); // +90 degrees from East
+The Coverage Improvement:
+
+Metric	Old Coverage	New Coverage
+Branches	93.10%	100.00%
+Conditions	50.00%	100.00%
+Why it worked: By forcing the robot to turn both left (positive error) and right (negative error), we forced the PID.sv module to execute both sides of its saturation logic. The testbench verified that the math successfully clamps to 10'h1ff (+511) for positive overflows and 10'h200 (-512) for negative overflows, checking off every condition in that module.
+
+2. Motor Drive & PWM Modules "Wake Up"
+
+In the previous run, files like PWM12.sv, PWM8.sv, and DutyScaleROM.sv didn't even appear on the coverage report because the robot barely drove its motors. Furthermore, MtrDrv.sv had lower toggle coverage because its internal variables weren't changing.
+
+The Testbench Change:
+We explicitly manipulated the battery voltage mid-simulation to simulate a dying battery:
+
+Code snippet
+batt = 12'hA00; 
+send_command(HEADING_BASE | EAST);
+The Coverage Improvement:
+
+File	Metric	Old Coverage	New Coverage
+MtrDrv.sv	Toggles	78.89%	96.81%
+PWM12.sv	Statements	Not Executed	100.00%
+PWM8.sv	Statements	Not Executed	100.00%
+Why it worked: Your MtrDrv.sv contains logic to scale up the PWM duty cycle if the battery drops below nominal (0xD80). By artificially dropping batt to 12'hA00, the hardware was forced to route data through the DutyScaleROM.sv and execute the division/multiplication logic required to boost the motor power. This caused thousands of bits inside MtrDrv to flip from 0 to 1 (hence the massive boost in Toggles), and it fully activated the underlying PWM generation modules.
