@@ -32,16 +32,16 @@ set_max_transition 0.125 [current_design]
 # Wire load model
 set_wire_load_model -name 16000 -library saed32lvt_tt0p85v25c
 
+# Set clock uncertainty
+set_clock_uncertainty 0.125 clk
+
+set_fix_hold clk
+
 # Compile
 compile -map_effort medium
 
 # Flatten hierarchy
 ungroup -all -flatten
-
-# Set clock uncertainty
-set_clock_uncertainty 0.125 clk
-
-set_fix_hold clk
 
 # Compile again
 compile -map_effort medium
