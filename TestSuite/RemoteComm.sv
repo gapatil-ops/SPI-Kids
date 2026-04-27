@@ -13,6 +13,7 @@ module RemoteComm(
 
     logic trmt;
 
+
     logic [7:0] tx_data;
     logic tx_done;
 
