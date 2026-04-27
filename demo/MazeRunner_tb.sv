@@ -46,9 +46,10 @@ module MazeRunner_tb();
   /////////////////////////////////////////////////
   RunnerPhysics iPHYS(.clk(clk),.RST_n(RST_n),.SS_n(INRT_SS_n),.SCLK(INRT_SCLK),.MISO(INRT_MISO),
                       .MOSI(INRT_MOSI),.INT(INRT_INT),.lftPWM1(lftPWM1),.lftPWM2(lftPWM2),
-					  .rghtPWM1(rghtPWM1),.rghtPWM2(rghtPWM2), .IR_lft_en(IR_lft_en),.IR_cntr_en(IR_cntr_en),
-            .IR_rght_en(IR_rght_en),.A2D_SS_n(A2D_SS_n),.A2D_SCLK(A2D_SCLK),.A2D_MOSI(A2D_MOSI),
-					  .A2D_MISO(A2D_MISO),.hall_n(hall_n),.batt(batt));
+					  .rghtPWM1(rghtPWM1),.rghtPWM2(rghtPWM2),
+                     .IR_lft_en(IR_lft_en),.IR_cntr_en(IR_cntr_en),.IR_rght_en(IR_rght_en),
+					 .A2D_SS_n(A2D_SS_n),.A2D_SCLK(A2D_SCLK),.A2D_MOSI(A2D_MOSI),
+					 .A2D_MISO(A2D_MISO),.hall_n(hall_n),.batt(batt));
 
 
 					 
@@ -86,7 +87,7 @@ $stop();
 
     
   
-  // ====================================================================
+ // ====================================================================
   // TEST 1: Calibration and Handshaking (Opcode: 0x0000)
   // ====================================================================
 
@@ -233,14 +234,12 @@ $stop();
   clr_resp_rdy = 1;
   @(posedge clk);
   clr_resp_rdy = 0;
-
-  $display("ALL TESTS PASSED !!!");
-
-  $stop();
 	
+
+
+  $display("All test cases completed. Ending simulation.");
+  $stop();
   end
-
-
   
   always
     #5 clk = ~clk;
