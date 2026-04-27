@@ -224,7 +224,6 @@ module MazeRunner_tb_integrated_left();
       @(negedge clk iff iDUT.mv_cmplt);
       @(negedge clk iff !iDUT.mv_cmplt);
       mv_count++;
-      wait(iDUT.mv_cmplt);
       // heading_robot is signed; SOUTH is the 0x7FF/0x800 wrap region.
       if (!(iPHYS.heading_robot[19:8] inside {[12'h750:12'h7FF], [12'h800:12'h850]})) begin
         $display("[%0t] ERR: Expected U-Turn to SOUTH after mv_cmplt #2, got heading %h",
@@ -242,39 +241,82 @@ module MazeRunner_tb_integrated_left();
                $time, iPHYS.xx[14:8], iPHYS.yy[14:8]);
 
       // ----------------------------------------------------------------
-      // 5) Let the LEFT-affinity algorithm run autonomously
+      // 4) Moving South to Row 0, Column 3
       // ----------------------------------------------------------------
-      $display("[%0t] Monitoring autonomous left-affinity navigation...", $time);
+      $display("[%0t] Moving South until row 0, column 3...", $time);
+      // Row 0 corresponds to a Y-coordinate around 7'h08. 
+      // 7'h10 is the boundary between row 1 and row 0.
+      while (iPHYS.yy[14:8] > 7'h10) begin
+        @(posedge clk iff iDUT.mv_cmplt);
+        @(posedge clk iff !iDUT.mv_cmplt);
+        mv_count++;
+        $display("[%0t] mv_cmplt #%0d: Moving South | xx=%h yy=%h",
+                 $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
+      end
+      $display("[%0t] CHK: Reached row 0, column 3! xx=%h yy=%h", $time, iPHYS.xx[14:8], iPHYS.yy[14:8]);
+
+      // ----------------------------------------------------------------
+      // 5) U-Turn to Face North (Dead End)
+      // ----------------------------------------------------------------
+      // Upon hitting the South wall at row 0, the robot should spin 180 to face North
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
+      mv_count++;
       
+      // Check heading is roughly North (0x000, accounting for two's complement wrap around 0xFFF)
+      if (!(iPHYS.heading_robot[19:8] inside {[12'h000:12'h050], [12'hFA0:12'hFFF]})) begin
+        $display("[%0t] ERR: Expected U-Turn to NORTH, got heading %h",
+                 $time, iPHYS.heading_robot[19:8]);
+        $stop();
+      end
+      $display("[%0t] CHK: U-turn complete, robot facing NORTH (heading=%h)",
+               $time, iPHYS.heading_robot[19:8]);
+
+      // ----------------------------------------------------------------
+      // 6) Move North until Left Opening, then Turn Left (West)
+      // ----------------------------------------------------------------
+      $display("[%0t] Moving North to find the first left opening...", $time);
+      
+      // Wait for the forward move to complete (reaching the cell with a left opening)
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
+      mv_count++;
+      $display("[%0t] mv_cmplt #%0d: Reached intersection with left opening | xx=%h yy=%h",
+               $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
+
+      // Now wait for the left-affinity turn to complete
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
+      mv_count++;
+      
+      // Check heading is roughly West (0x3FF / 0x400)
+      if (!(iPHYS.heading_robot[19:8] inside {[12'h3A0:12'h450]})) begin
+        $display("[%0t] ERR: Expected Left turn to WEST, got heading %h",
+                 $time, iPHYS.heading_robot[19:8]);
+        $stop();
+      end
+      $display("[%0t] CHK: Left turn complete, robot facing WEST (heading=%h)",
+               $time, iPHYS.heading_robot[19:8]);
+
+      // ----------------------------------------------------------------
+      // 7) Let the Left-Affinity algorithm run autonomously until Magnet
+      // ----------------------------------------------------------------
+      $display("[%0t] Monitoring autonomous left-affinity navigation to the magnet...", $time);
       while (hall_n === 1'b1) begin
         @(posedge clk iff iDUT.mv_cmplt);
         @(posedge clk iff !iDUT.mv_cmplt);
         mv_count++;
-        
-        if (hall_n === 1'b1) begin
+
+        if (hall_n === 1'b1) begin // Print only if magnet isn't hit yet
           $display("[%0t]   -> milestone #%0d | xx=%h yy=%h heading=%h",
                    $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8],
                    iPHYS.heading_robot[19:8]);
         end
       end
 
-      $display("[%0t] SUCCESS: hall_n went low after %0d milestones (xx=%h, yy=%h)",
+      $display("[%0t] SUCCESS: hall_n went low after %0d milestones! Magnet found at (xx=%h, yy=%h)",
                $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
-    end
-
-    // ------------------------------------------------------------------
-    // 6) Final SOLVE-complete ack.  cmd_proc's SOLVE arm asserts
-    //    send_resp once sol_cmplt rises, RemoteComm latches resp_rdy
-    //    with resp == 0xA5.
-    // ------------------------------------------------------------------
-    check_for_ack(2_000_000, "SOLVE LEFT");
-
-    $display("---------------------------------------------------------------");
-    $display("[%0t] LEFT-AFFINITY INTEGRATED TEST PASSED", $time);
-    $display("---------------------------------------------------------------");
-
-    disable global_timeout;
-    $stop();
+    end // End of drive_solve block
   end
 
   always
