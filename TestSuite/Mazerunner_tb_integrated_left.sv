@@ -316,6 +316,7 @@ module MazeRunner_tb_integrated_left();
 
       $display("[%0t] SUCCESS: hall_n went low after %0d milestones! Magnet found at (xx=%h, yy=%h)",
                $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
+      $stop();
     end // End of drive_solve block
   end
 
