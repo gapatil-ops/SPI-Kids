@@ -1,7 +1,5 @@
 module MazeRunner_tb_right_affinity();
 
-  // Incremental bring-up test (calibration only).
-  // This intentionally avoids solve/affinity behavior for now.
 
   reg clk, RST_n;
   reg send_cmd;

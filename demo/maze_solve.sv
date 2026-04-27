@@ -20,7 +20,7 @@ output logic strt_hdng, strt_mv, stp_lft, stp_rght;
 output logic [11:0] dsrd_hdng;
 
 // State encoding
-typedef enum logic[1:0] { IDLE, MOVE, SOL_CHECK, DONE } state_t;
+typedef enum logic[2:0] { IDLE, MOVE, SOL_CHECK, WAIT_FOR_TURN, DONE } state_t;
 
 state_t state, next_state;
 
@@ -56,7 +56,7 @@ always_comb begin
             if (sol_cmplt)
                 next_state = DONE;
             else if (cmd0) begin
-                next_state = MOVE;
+                next_state = WAIT_FOR_TURN;
                 strt_hdng = 1;
                 if (lft_opn)
                     // Turn left
@@ -69,7 +69,7 @@ always_comb begin
                     dsrd_hdng_tmp = dsrd_hdng +12'h800;
             end
             else begin
-                next_state = MOVE;
+                next_state = WAIT_FOR_TURN;
                 strt_hdng = 1;
                 if (rght_opn)
                     // Turn right
@@ -80,6 +80,12 @@ always_comb begin
                 else
                     // Turn 180
                     dsrd_hdng_tmp = dsrd_hdng +12'h800;
+            end
+        end
+        WAIT_FOR_TURN: begin
+            if (mv_cmplt) begin
+                next_state = MOVE;
+                strt_mv = 1;
             end
         end
         DONE: begin
