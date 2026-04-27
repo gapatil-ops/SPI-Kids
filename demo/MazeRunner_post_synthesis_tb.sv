@@ -189,6 +189,8 @@ module MazeRunner_post_synthesis_tb();
     $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
     $display("Expected heading is still %h", WEST);
 
+    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
+
     // The boxes of the maze are 16 units wide, so we want our bot's center position to be within 4 units of (24,40) in either direction
     if (!(iPHYS.xx[14:8] inside {[24-4:24+4]})) begin
       $display("Expected x position to be around %d but got %d", 24, iPHYS.xx[14:8]);
@@ -200,7 +202,6 @@ module MazeRunner_post_synthesis_tb();
       $stop();
     end
 
-    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
     $display(); // Add a blank line for readability between tests
 
     // TEST 6: Now, the position we're at is actually the position of the magnet, so let's check if the robot detects
@@ -219,8 +220,6 @@ module MazeRunner_post_synthesis_tb();
     $stop();
 	
   end
-
-
   
   always
     #5 clk = ~clk;
