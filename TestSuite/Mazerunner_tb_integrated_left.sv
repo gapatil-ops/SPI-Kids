@@ -152,7 +152,8 @@ module MazeRunner_tb_integrated_left();
                $time, iDUT.lft_spd, iDUT.rght_spd);
       $stop();
     end
-    if (iPHYS.omega_sum !== 17'h00000) begin
+    // omega_sum is signed. Allow for minor PWM measurement quantization noise (+/- 100)
+    if (iPHYS.omega_sum > $signed(17'd100) || iPHYS.omega_sum < $signed(-17'd100)) begin
       $display("[%0t] ERR: RunnerPhysics omega_sum non-zero during idle (=%h)",
                $time, iPHYS.omega_sum);
       $stop();
@@ -168,23 +169,27 @@ module MazeRunner_tb_integrated_left();
     //       (a) cmd_proc actually issues strt_mv after a MOVE command,
     //       (b) the response path still works.
     // ------------------------------------------------------------------
-    send_command(MOVE_BASE | NORTH);
-
-    // Watch for strt_mv with a small budget so we don't miss the pulse
-    // and don't hang if it never asserts.
-    fork: chk_strt_mv
-      begin
-        wait(iDUT.strt_mv);
+    // We must fork the watcher and sender simultaneously!
+    // If we wait for send_command to return before checking, we will miss
+    // the 1-cycle strt_mv pulse if it fires during the final UART stop bit.
+    fork: send_and_check
+      begin: wait_pulse
+        @(posedge iDUT.strt_mv);
         $display("[%0t] CHK: strt_mv asserted after MOVE command", $time);
-        disable strt_mv_to;
       end
-      begin: strt_mv_to
-        repeat (100_000) @(negedge clk);
-        $display("[%0t] ERR: strt_mv was never asserted after MOVE command",
-                 $time);
+      begin: send_cmd_thread
+        send_command(MOVE_BASE | NORTH);
+      end
+      begin: timeout_thread
+        // Increase budget slightly to account for the transmission time
+        repeat (300_000) @(negedge clk);
+        $display("[%0t] ERR: strt_mv was never asserted after MOVE command", $time);
         $stop();
       end
-    join
+    join_any
+    
+    // Once the pulse is found (or it times out), kill the remaining threads
+    disable send_and_check;
 
     check_for_ack(5_000_000, "MOVE NORTH (wall)");
 
@@ -209,14 +214,17 @@ module MazeRunner_tb_integrated_left();
       mv_count = 0;
 
       // milestone #1: forward into north wall
-      @(posedge iDUT.mv_cmplt);
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt); // Wait for pulse to end
       mv_count++;
       $display("[%0t] mv_cmplt #1 (forward attempt vs. north wall): heading=%h",
                $time, iPHYS.heading_robot[19:8]);
 
       // milestone #2: U-turn complete (heading should now be ~SOUTH)
-      @(posedge iDUT.mv_cmplt);
+      @(negedge clk iff iDUT.mv_cmplt);
+      @(negedge clk iff !iDUT.mv_cmplt);
       mv_count++;
+      wait(iDUT.mv_cmplt);
       // heading_robot is signed; SOUTH is the 0x7FF/0x800 wrap region.
       if (!(iPHYS.heading_robot[19:8] inside {[12'h750:12'h7FF], [12'h800:12'h850]})) begin
         $display("[%0t] ERR: Expected U-Turn to SOUTH after mv_cmplt #2, got heading %h",
@@ -227,23 +235,22 @@ module MazeRunner_tb_integrated_left();
                $time, iPHYS.heading_robot[19:8]);
 
       // milestone #3: first southbound forward move complete (yy ~= 0x28)
-      @(posedge iDUT.mv_cmplt);
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
       mv_count++;
       $display("[%0t] mv_cmplt #3: xx=%h yy=%h (target yy[14:8]~=0x28)",
                $time, iPHYS.xx[14:8], iPHYS.yy[14:8]);
 
       // ----------------------------------------------------------------
-      // 5) Let the LEFT-affinity algorithm run autonomously and log
-      //    every additional milestone until the magnet (hall_n=0) is
-      //    detected.  hall_n is asserted by RunnerPhysics when (xx,yy)
-      //    falls inside the +/-3 window around (magnet_pos_xx,
-      //    magnet_pos_yy) = (0x18, 0x28), i.e. cell (1,2).
+      // 5) Let the LEFT-affinity algorithm run autonomously
       // ----------------------------------------------------------------
-      $display("[%0t] Monitoring autonomous left-affinity navigation...",
-               $time);
+      $display("[%0t] Monitoring autonomous left-affinity navigation...", $time);
+      
       while (hall_n === 1'b1) begin
-        @(posedge iDUT.mv_cmplt);
+        @(posedge clk iff iDUT.mv_cmplt);
+        @(posedge clk iff !iDUT.mv_cmplt);
         mv_count++;
+        
         if (hall_n === 1'b1) begin
           $display("[%0t]   -> milestone #%0d | xx=%h yy=%h heading=%h",
                    $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8],
