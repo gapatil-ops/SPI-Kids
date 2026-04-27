@@ -1,7 +1,7 @@
 /**
  * Testbench for MazeRunner module - this testbench does a manual solve of the maze, sending commands to the MazeRunner robot
  */
-module MazeRunner_tb_2();
+module MazeRunner_post_synthesis_tb();
   
   reg clk,RST_n;
   reg snd_cmd;					// assert to send command to MazeRunner_tb
@@ -127,37 +127,6 @@ module MazeRunner_tb_2();
     send_command(CALIBRATE);
     
     // TEST 1: Calibration Command Test
-    fork
-      
-      begin: cal_done_timeout
-        wait(iDUT.strt_cal);
-        repeat (100_000) @(negedge clk);
-        $display("Calibration did not complete in expected time");
-      end
-
-      begin: int_cal_timeout
-        repeat (54000) @(negedge clk);
-        $display("Internal start cal signal was never asserted");
-        $stop();
-      end
-
-      begin: check_internal_cal // Checking the internal calibration signals
-        
-        wait(iDUT.strt_cal);
-        disable int_cal_timeout;
-
-        assert property ( @(negedge clk) iDUT.strt_cal |-> ##1 LED[0] ) 
-        else begin // LED[0] is the in_cal signal
-          $display("strt_cal was asserted but in_cal was not asserted on the next cycle");
-          $stop();
-        end
-
-        //enable cal_done_timeout; // If calibration starts, we enable the timeout for calibration to complete
-        wait(iDUT.cal_done);
-        disable cal_done_timeout;
-      end
-
-    join
 
     check_for_ack(); // We wait for an acknowledgement from the robot after the calibration command completes
     $display(); // Add a blank line for readability between tests
