@@ -235,8 +235,12 @@ $stop();
   clr_resp_rdy = 0;
 
   $display("ALL TESTS PASSED !!!");
+
+  $stop();
 	
   end
+
+
   
   always
     #5 clk = ~clk;
