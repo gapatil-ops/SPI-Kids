@@ -48,7 +48,7 @@ always_comb begin
 
     case(state)
         MOVE: begin
-            if ((lft_opn & cmd0) | (rght_opn & ~cmd0) | mv_cmplt) begin
+            if (mv_cmplt) begin
                 next_state = SOL_CHECK;
             end
         end
