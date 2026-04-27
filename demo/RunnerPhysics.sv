@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 module RunnerPhysics(clk,RST_n,SS_n,SCLK,MISO,MOSI,INT,lftPWM1,lftPWM2,rghtPWM1,rghtPWM2,
                      IR_lft_en,IR_cntr_en,IR_rght_en,A2D_SS_n,A2D_SCLK,A2D_MOSI,A2D_MISO,
 					 hall_n,batt);

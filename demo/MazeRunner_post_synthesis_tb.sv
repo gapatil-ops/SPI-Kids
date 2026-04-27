@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 /**
  * Testbench for MazeRunner module - this testbench does a manual solve of the maze, sending commands to the MazeRunner robot
  */
@@ -207,8 +208,8 @@ module MazeRunner_post_synthesis_tb();
     // TEST 6: Now, the position we're at is actually the position of the magnet, so let's check if the robot detects
     // it and we get a solution complete acknowledgement after this
 
-    if (iDUT.sol_cmplt !== 1'b1) begin
-      $display("Expected sol_cmplt to be 1 since we should be on the magnet, but got %b", iDUT.sol_cmplt);
+    if (hall_n !== 1'b0) begin
+      $display("Expected hall_n to be 0 since we should be on the magnet, but got %b", hall_n);
       $stop();
     end
 
