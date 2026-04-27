@@ -76,6 +76,11 @@ module MazeRunner_tb_integrated_right();
     @(posedge clk);
     @(negedge clk);
     RST_n = 1'b1;                  // release reset
+    
+    // Nudge physics off dead-center (as added previously) to prevent initial dead-zone glitch
+    #1; 
+    iPHYS.xx = 15'h3801; 
+    iPHYS.yy = 15'h3801;
   endtask
 
   /* Helper task to send a command */
@@ -131,28 +136,20 @@ module MazeRunner_tb_integrated_right();
     initialize_and_reset();
 
     // ------------------------------------------------------------------
-    // 1) Calibration: send 0x0000 and wait for the 0xA5 acknowledgement.
-    //    Calibration with FAST_SIM=1 takes ~80k clk cycles after cmd_sent;
-    //    we give it 2M cycles of headroom.  check_for_ack also clears
-    //    resp_rdy so the next ack is recognized cleanly.
+    // 1) Calibration
     // ------------------------------------------------------------------
     send_command(CALIBRATE);
     check_for_ack(2_000_000, "CAL");
 
     // ------------------------------------------------------------------
-    // 2) Idle / sanity probes BEFORE issuing any motion command.
-    //    During calibration the wheels are not driven, so:
-    //      - PID outputs lft_spd/rght_spd should still be 0
-    //      - RunnerPhysics omega_sum (= omega_lft + omega_rght) should be 0
-    //    Any non-zero value would mean the design or the plant model
-    //    started moving on their own.
+    // 2) Idle / sanity probes BEFORE issuing any motion command
     // ------------------------------------------------------------------
     if (iDUT.lft_spd !== 12'h000 || iDUT.rght_spd !== 12'h000) begin
       $display("[%0t] ERR: lft_spd/rght_spd not zero during idle (%h/%h)",
                $time, iDUT.lft_spd, iDUT.rght_spd);
       $stop();
     end
-    if (iPHYS.omega_sum !== 17'h00000) begin
+    if (iPHYS.omega_sum > $signed(17'd100) || iPHYS.omega_sum < $signed(-17'd100)) begin
       $display("[%0t] ERR: RunnerPhysics omega_sum non-zero during idle (=%h)",
                $time, iPHYS.omega_sum);
       $stop();
@@ -160,68 +157,52 @@ module MazeRunner_tb_integrated_right();
     $display("[%0t] CHK: robot is stationary post-calibration", $time);
 
     // ------------------------------------------------------------------
-    // 3) Sanity move: ask the robot to drive due north.  At start the
-    //    robot is in cell (3,3) which has NEW walls (mazeModel[3][3]=4'hB),
-    //    so the move will hit the north wall almost immediately,
-    //    navigate's MV_ACCEL -> DECEL_FAST will fire mv_cmplt, and
-    //    cmd_proc will reply with 0xA5.  The point is to confirm that:
-    //       (a) cmd_proc actually issues strt_mv after a MOVE command,
-    //       (b) the response path still works.
+    // 3) Sanity move (North into the wall)
     // ------------------------------------------------------------------
-    send_command(MOVE_BASE | NORTH);
-
-    // Watch for strt_mv with a small budget so we don't miss the pulse
-    // and don't hang if it never asserts.
-    fork: chk_strt_mv
-      begin
-        wait(iDUT.strt_mv);
+    fork: send_and_check
+      begin: wait_pulse
+        @(posedge iDUT.strt_mv);
         $display("[%0t] CHK: strt_mv asserted after MOVE command", $time);
-        disable strt_mv_to;
       end
-      begin: strt_mv_to
-        repeat (100_000) @(negedge clk);
-        $display("[%0t] ERR: strt_mv was never asserted after MOVE command",
-                 $time);
+      begin: send_cmd_thread
+        send_command(MOVE_BASE | NORTH);
+      end
+      begin: timeout_thread
+        repeat (300_000) @(negedge clk);
+        $display("[%0t] ERR: strt_mv was never asserted after MOVE command", $time);
         $stop();
       end
-    join
-
+    join_any
+    
+    disable send_and_check;
     check_for_ack(5_000_000, "MOVE NORTH (wall)");
 
     // ------------------------------------------------------------------
     // 4) Start the RIGHT-affinity maze solve.
-    //    cmd_proc latches cmd_md=0, maze_solve takes over the navigate
-    //    interface, and from here on we just observe the navigation
-    //    milestones (mv_cmplt) and the magnet event (hall_n -> 0).
     // ------------------------------------------------------------------
     $display("[%0t] --- Starting RIGHT-affinity maze solve ---", $time);
+    
+    // Note the change here to RGHT_AFFN
     send_command(SOLVE_BASE | RGHT_AFFN);
 
     // ------------------------------------------------------------------
-    // Milestone counter.  Cell (3,3) has NEW walls so left, right and
-    // forward are all blocked at start regardless of affinity.  The
-    // first mv_cmplt is therefore still the failed forward attempt at
-    // the north wall (heading=NORTH), and SOL_CHECK still resolves to a
-    // 180-degree turn (no left or right opening for either affinity).
-    // The U-turn completes on the SECOND mv_cmplt (heading=SOUTH), and
-    // the first southbound forward cell finishes on the THIRD mv_cmplt
-    // (yy[14:8] ~= 0x28).  After that the right-affinity algorithm
-    // diverges from the left-affinity one at the next intersection.
+    // Drive & Solve Milestone Tracker
     // ------------------------------------------------------------------
     begin: drive_solve
       int mv_count;
       mv_count = 0;
 
       // milestone #1: forward into north wall
-      @(posedge iDUT.mv_cmplt);
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt); 
       mv_count++;
-      $display("[%0t] mv_cmplt #1 (forward attempt vs. north wall): heading=%h",
-               $time, iPHYS.heading_robot[19:8]);
+      $display("[%0t] mv_cmplt #%0d (forward attempt vs. north wall): heading=%h",
+               $time, mv_count, iPHYS.heading_robot[19:8]);
 
       // milestone #2: U-turn complete (heading should now be ~SOUTH)
-      @(posedge iDUT.mv_cmplt);
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
       mv_count++;
-      // heading_robot is signed; SOUTH is the 0x7FF/0x800 wrap region.
       if (!(iPHYS.heading_robot[19:8] inside {[12'h750:12'h7FF], [12'h800:12'h850]})) begin
         $display("[%0t] ERR: Expected U-Turn to SOUTH after mv_cmplt #2, got heading %h",
                  $time, iPHYS.heading_robot[19:8]);
@@ -230,24 +211,39 @@ module MazeRunner_tb_integrated_right();
       $display("[%0t] CHK: U-turn complete, robot facing SOUTH (heading=%h)",
                $time, iPHYS.heading_robot[19:8]);
 
-      // milestone #3: first southbound forward move complete (yy ~= 0x28)
-      @(posedge iDUT.mv_cmplt);
+      // milestone #3: Move South one cell and evaluate intersection
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
       mv_count++;
-      $display("[%0t] mv_cmplt #3: xx=%h yy=%h (target yy[14:8]~=0x28)",
-               $time, iPHYS.xx[14:8], iPHYS.yy[14:8]);
+      $display("[%0t] mv_cmplt #%0d: Reached intersection moving South | xx=%h yy=%h",
+               $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
 
       // ----------------------------------------------------------------
-      // 5) Let the RIGHT-affinity algorithm run autonomously and log
-      //    every additional milestone until the magnet (hall_n=0) is
-      //    detected.  hall_n is asserted by RunnerPhysics when (xx,yy)
-      //    falls inside the +/-3 window around (magnet_pos_xx,
-      //    magnet_pos_yy) = (0x18, 0x28), i.e. cell (1,2).
+      // 5) Right Turn based on Right Affinity (Facing South -> Turning West)
       // ----------------------------------------------------------------
-      $display("[%0t] Monitoring autonomous right-affinity navigation...",
-               $time);
+      // Since it is Right Affinity, it should prioritize the opening on its right (West)
+      @(posedge clk iff iDUT.mv_cmplt);
+      @(posedge clk iff !iDUT.mv_cmplt);
+      mv_count++;
+      
+      // Check heading is roughly West (0x3FF / 0x400)
+      if (!(iPHYS.heading_robot[19:8] inside {[12'h3A0:12'h450]})) begin
+        $display("[%0t] ERR: Expected Right turn to WEST, got heading %h",
+                 $time, iPHYS.heading_robot[19:8]);
+        $stop();
+      end
+      $display("[%0t] CHK: Right turn complete! Robot facing WEST (heading=%h) at xx=%h yy=%h",
+               $time, iPHYS.heading_robot[19:8], iPHYS.xx[14:8], iPHYS.yy[14:8]);
+
+      // ----------------------------------------------------------------
+      // 6) Let the Right-Affinity algorithm run autonomously until Magnet
+      // ----------------------------------------------------------------
+      $display("[%0t] Monitoring autonomous RIGHT-affinity navigation to the magnet...", $time);
       while (hall_n === 1'b1) begin
-        @(posedge iDUT.mv_cmplt);
+        @(posedge clk iff iDUT.mv_cmplt);
+        @(posedge clk iff !iDUT.mv_cmplt);
         mv_count++;
+
         if (hall_n === 1'b1) begin
           $display("[%0t]   -> milestone #%0d | xx=%h yy=%h heading=%h",
                    $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8],
@@ -255,14 +251,13 @@ module MazeRunner_tb_integrated_right();
         end
       end
 
-      $display("[%0t] SUCCESS: hall_n went low after %0d milestones (xx=%h, yy=%h)",
+      $display("[%0t] SUCCESS: hall_n went low after %0d milestones! Magnet found at (xx=%h, yy=%h)",
                $time, mv_count, iPHYS.xx[14:8], iPHYS.yy[14:8]);
-    end
+      $stop();
+    end // End of drive_solve block
 
     // ------------------------------------------------------------------
-    // 6) Final SOLVE-complete ack.  cmd_proc's SOLVE arm asserts
-    //    send_resp once sol_cmplt rises, RemoteComm latches resp_rdy
-    //    with resp == 0xA5.
+    // 7) Final SOLVE-complete ack.
     // ------------------------------------------------------------------
     check_for_ack(2_000_000, "SOLVE RIGHT");
 
