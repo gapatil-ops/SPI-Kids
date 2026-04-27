@@ -235,7 +235,7 @@ module MazeRunner_tb_right_affinity();
     end
   endtask
 
-  // Wait (with timeout) for cmd_md to fall low.  cmd_proc holds cmd_md high
+  // Wait for cmd_md to fall low.  cmd_proc holds cmd_md high
   // while in command mode and drops it once a maze-solve opcode is latched;
   // that is the exact moment maze_solve is allowed to leave IDLE.
   task automatic WaitForCmdMdLow(input int max_cycles, input string label);
@@ -255,7 +255,7 @@ module MazeRunner_tb_right_affinity();
     end
   endtask
 
-  // Wait (with timeout) until the maze_solve FSM is parked in a given state.
+  // Wait until the maze_solve FSM is parked in a given state.
   task automatic WaitForState(input logic [1:0] tgt, input int max_cycles, input string label);
     int cyc;
     begin
@@ -272,7 +272,7 @@ module MazeRunner_tb_right_affinity();
     end
   endtask
 
-  // Wait (with timeout) until the piezo_drv FSM (instance ICHRG) is in a
+  // Wait until the piezo_drv FSM (instance ICHRG) is in a
   // given state.  Used by STEP 6 to walk through every note of the "Charge!"
   // fanfare; the timeout must be generous because each beat consumes
   // hundreds of thousands of clocks even at FAST_SIM=1.
