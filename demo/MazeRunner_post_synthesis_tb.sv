@@ -184,13 +184,13 @@ module MazeRunner_post_synthesis_tb();
     // TEST 5: Move forward until we see an open on the left, then stop
 
     send_command(MOVE_BASE + STP_LFT);
+    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
 
     $display("Current position according to iPHYS is (%0d, %0d)", iPHYS.xx[14:8], iPHYS.yy[14:8]);
     $display("Expected position is around (24,40) since we should just have moved west 2 boxes");
     $display("Current heading according to iPHYS is %h", iPHYS.heading_robot[19:8]);
     $display("Expected heading is still %h", WEST);
 
-    check_for_ack(); // We wait for an acknowledgement from the robot after the move command completes
 
     // The boxes of the maze are 16 units wide, so we want our bot's center position to be within 4 units of (24,40) in either direction
     if (!(iPHYS.xx[14:8] inside {[24-4:24+4]})) begin
